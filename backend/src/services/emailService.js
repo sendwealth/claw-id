@@ -6,6 +6,13 @@ class EmailService {
   }
 
   /**
+   * 生成智能体 ID
+   */
+  generateAgentId() {
+    return `agent_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  }
+
+  /**
    * 生成智能体邮箱
    */
   generateEmail(agentId) {

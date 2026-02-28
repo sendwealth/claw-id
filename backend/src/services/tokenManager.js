@@ -7,6 +7,16 @@ class TokenManager {
   }
 
   /**
+   * 生成 API Key
+   */
+  generateApiKey(agentId) {
+    const crypto = require('crypto');
+    const apiKey = `claw_${crypto.randomBytes(32).toString('hex')}`;
+    const keyHash = this.encrypt(apiKey);
+    return { apiKey, keyHash };
+  }
+
+  /**
    * 加密数据
    */
   encrypt(text) {

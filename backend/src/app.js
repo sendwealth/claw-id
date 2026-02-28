@@ -31,7 +31,8 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
-app.use('/api/agents', agentsRouter);
+app.use('/api/v1/agents', agentsRouter);
+app.use('/api/agents', agentsRouter); // 兼容旧路径
 
 // Root endpoint
 app.get('/', (req, res) => {
