@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 const githubOAuth = require('../services/githubOAuth');
 const discordBot = require('../services/discordBot');
-const { requireApiKey } = require('../middleware/auth');
+const { validateApiKey } = require('../middleware/auth');
 
 /**
  * GET /api/v1/platforms
@@ -50,7 +50,7 @@ router.get('/', (req, res) => {
  * GET /api/v1/platforms/:platform/status/:agentId
  * 获取智能体在某个平台的连接状态
  */
-router.get('/:platform/status/:agentId', requireApiKey, async (req, res) => {
+router.get('/:platform/status/:agentId', validateApiKey, async (req, res) => {
   try {
     const { platform, agentId } = req.params;
     const prisma = require('../app').prisma;
@@ -83,7 +83,7 @@ router.get('/:platform/status/:agentId', requireApiKey, async (req, res) => {
  * DELETE /api/v1/platforms/:platform/disconnect/:agentId
  * 断开平台连接
  */
-router.delete('/:platform/disconnect/:agentId', requireApiKey, async (req, res) => {
+router.delete('/:platform/disconnect/:agentId', validateApiKey, async (req, res) => {
   try {
     const { platform, agentId } = req.params;
     const prisma = require('../app').prisma;
@@ -121,7 +121,7 @@ router.delete('/:platform/disconnect/:agentId', requireApiKey, async (req, res) 
  * GET /api/v1/platforms/github/repos/:agentId
  * 获取 GitHub 仓库列表
  */
-router.get('/github/repos/:agentId', requireApiKey, async (req, res) => {
+router.get('/github/repos/:agentId', validateApiKey, async (req, res) => {
   try {
     const { agentId } = req.params;
     const repos = await githubOAuth.callApi(agentId, '/user/repos');
@@ -148,7 +148,7 @@ router.get('/github/repos/:agentId', requireApiKey, async (req, res) => {
  * POST /api/v1/platforms/github/issues/:agentId
  * 创建 GitHub Issue
  */
-router.post('/github/issues/:agentId', requireApiKey, async (req, res) => {
+router.post('/github/issues/:agentId', validateApiKey, async (req, res) => {
   try {
     const { agentId } = req.params;
     const { owner, repo, title, body } = req.body;
@@ -186,7 +186,7 @@ router.post('/github/issues/:agentId', requireApiKey, async (req, res) => {
  * GET /api/v1/platforms/discord/guilds/:agentId
  * 获取 Discord 服务器列表
  */
-router.get('/discord/guilds/:agentId', requireApiKey, async (req, res) => {
+router.get('/discord/guilds/:agentId', validateApiKey, async (req, res) => {
   try {
     const { agentId } = req.params;
     const guilds = await discordBot.getGuilds(agentId);
@@ -207,7 +207,7 @@ router.get('/discord/guilds/:agentId', requireApiKey, async (req, res) => {
  * POST /api/v1/platforms/discord/messages/:agentId
  * 发送 Discord 消息
  */
-router.post('/discord/messages/:agentId', requireApiKey, async (req, res) => {
+router.post('/discord/messages/:agentId', validateApiKey, async (req, res) => {
   try {
     const { agentId } = req.params;
     const { channelId, content } = req.body;

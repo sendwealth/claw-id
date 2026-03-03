@@ -3,7 +3,10 @@ const crypto = require('crypto');
 class TokenManager {
   constructor() {
     this.algorithm = 'aes-256-cbc';
-    this.key = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
+    // Convert hex string to Buffer, or generate random key
+    this.key = process.env.ENCRYPTION_KEY
+      ? Buffer.from(process.env.ENCRYPTION_KEY, 'hex')
+      : crypto.randomBytes(32);
   }
 
   /**

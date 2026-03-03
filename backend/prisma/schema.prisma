@@ -1,88 +1,62 @@
-// 数据库 Schema - Prisma
-// 文件: prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-// 用户表
-model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  name          String?
-  passwordHash  String
-  apiKey        String    @unique
-  role          Role      @default(USER)
-  agents        Agent[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@map("users")
+model agents {
+  id                   String                 @id
+  userId               String
+  name                 String
+  description          String?
+  status               String                 @default("ACTIVE")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  users                users                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audit_logs           audit_logs[]
+  platform_credentials platform_credentials[]
 }
 
-// 智能体表
-model Agent {
-  id          String             @id @default(uuid())
-  userId      String
-  name        String
-  description String?
-  status      AgentStatus        @default(ACTIVE)
-  credentials PlatformCredential[]
-  auditLogs   AuditLog[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("agents")
-}
-
-// 平台凭证表
-model PlatformCredential {
-  id             String   @id @default(uuid())
-  agentId        String
-  platform       String   // github, discord, reddit, twitter
-  platformUserId String?  // 平台用户ID
-  accessToken    String   // 加密存储
-  refreshToken   String?  // 加密存储
-  tokenExpiresAt DateTime?
-  scopes         String[] // 权限范围
-  metadata       Json?    // 其他元数据
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  agent          Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  @@unique([agentId, platform])
-  @@map("platform_credentials")
-}
-
-// 审计日志表
-model AuditLog {
-  id        String   @id @default(uuid())
+model audit_logs {
+  id        String   @id
   agentId   String
-  action    String   // create, update, delete, api_call
+  action    String
   platform  String?
-  details   Json?
+  details   String?
   ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
-  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  @@map("audit_logs")
+  agents    agents   @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
 
-// 枚举
-enum Role {
-  USER
-  ADMIN
+model platform_credentials {
+  id             String    @id
+  agentId        String
+  platform       String
+  platformUserId String?
+  accessToken    String
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  scopes         String
+  metadata       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+  agents         agents    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, platform])
 }
 
-enum AgentStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
+model users {
+  id           String   @id
+  email        String   @unique
+  name         String?
+  passwordHash String
+  apiKey       String   @unique
+  role         String   @default("USER")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  agents       agents[]
 }

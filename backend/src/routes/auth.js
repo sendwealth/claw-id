@@ -6,7 +6,7 @@ const router = express.Router();
 const passport = require('passport');
 const githubOAuth = require('../services/githubOAuth');
 const apiKeyManager = require('../services/apiKeyManager');
-const { requireApiKey } = require('../middleware/auth');
+const { validateApiKey } = require('../middleware/auth');
 
 /**
  * GET /auth/github
@@ -61,7 +61,7 @@ router.get('/github/callback',
  * POST /auth/discord/bot
  * 添加 Discord Bot
  */
-router.post('/discord/bot', requireApiKey, async (req, res) => {
+router.post('/discord/bot', validateApiKey, async (req, res) => {
   try {
     const { agentId, botToken, clientId } = req.body;
 
@@ -117,7 +117,7 @@ router.get('/discord/invite-url', (req, res) => {
  * POST /auth/api-keys
  * 创建新的 API Key
  */
-router.post('/api-keys', requireApiKey, async (req, res) => {
+router.post('/api-keys', validateApiKey, async (req, res) => {
   try {
     const userId = req.user.id;
     const apiKey = await apiKeyManager.createApiKey(userId);
@@ -140,7 +140,7 @@ router.post('/api-keys', requireApiKey, async (req, res) => {
  * POST /auth/api-keys/regenerate
  * 重新生成 API Key
  */
-router.post('/api-keys/regenerate', requireApiKey, async (req, res) => {
+router.post('/api-keys/regenerate', validateApiKey, async (req, res) => {
   try {
     const userId = req.user.id;
     const newApiKey = await apiKeyManager.regenerateApiKey(userId);
@@ -163,7 +163,7 @@ router.post('/api-keys/regenerate', requireApiKey, async (req, res) => {
  * DELETE /auth/api-keys
  * 删除 API Key
  */
-router.delete('/api-keys', requireApiKey, async (req, res) => {
+router.delete('/api-keys', validateApiKey, async (req, res) => {
   try {
     const userId = req.user.id;
     await apiKeyManager.deleteApiKey(userId);

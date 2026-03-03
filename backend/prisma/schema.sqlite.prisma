@@ -1,0 +1,88 @@
+// 数据库 Schema - Prisma (SQLite版本 - 快速启动)
+// 文件: prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  apiKey        String    @unique
+  role          Role      @default(USER)
+  agents        Agent[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users")
+}
+
+// 智能体表
+model Agent {
+  id          String             @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  status      AgentStatus        @default(ACTIVE)
+  credentials PlatformCredential[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("agents")
+}
+
+// 平台凭证表
+model PlatformCredential {
+  id             String   @id @default(uuid())
+  agentId        String
+  platform       String   // github, discord, reddit, twitter
+  platformUserId String?  // 平台用户ID
+  accessToken    String   // 加密存储
+  refreshToken   String?  // 加密存储
+  tokenExpiresAt DateTime?
+  scopes         String   // 权限范围 (SQLite不支持数组，改为字符串)
+  metadata       String?  // 其他元数据 (JSON字符串)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  agent          Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, platform])
+  @@map("platform_credentials")
+}
+
+// 审计日志表
+model AuditLog {
+  id        String   @id @default(uuid())
+  agentId   String
+  action    String   // create, update, delete, api_call
+  platform  String?
+  details   String?  // JSON字符串
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+// 枚举
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}

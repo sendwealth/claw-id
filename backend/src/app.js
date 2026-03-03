@@ -30,6 +30,12 @@ app.use(cors());
 app.use(express.json());
 app.use(passport.initialize());
 
+// 注入 prisma 到 request
+app.use((req, res, next) => {
+  req.prisma = prisma;
+  next();
+});
+
 // 初始化服务
 githubOAuth.initialize(prisma);
 discordBot.initialize(prisma);

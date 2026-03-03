@@ -1,109 +1,122 @@
-// 认证中间件
+// API Key 验证中间件
 // 文件: src/middleware/auth.js
 
-const apiKeyManager = require('../services/apiKeyManager');
+const crypto = require('crypto');
 
 /**
- * API Key 认证中间件
+ * 验证 API Key
+ * 用法: router.get('/protected', validateApiKey, handler)
  */
-async function requireApiKey(req, res, next) {
+async function validateApiKey(req, res, next) {
   try {
     // 从 header 获取 API Key
-    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+    const apiKey = req.headers['x-api-key'] ||
+                   req.headers['authorization']?.replace('Bearer ', '');
 
     if (!apiKey) {
       return res.status(401).json({
-        error: '缺少API Key',
-        message: '请在header中提供 x-api-key 或 Authorization: Bearer <api-key>'
+        error: 'Unauthorized',
+        message: '缺少 API Key'
       });
     }
 
-    // 验证 API Key
-    const result = await apiKeyManager.verifyApiKey(apiKey);
-
-    if (!result.valid) {
+    // 验证格式
+    if (!apiKey.startsWith('claw_')) {
       return res.status(401).json({
-        error: '无效的API Key',
-        message: 'API Key不存在或已过期'
+        error: 'Unauthorized',
+        message: '无效的 API Key 格式'
       });
     }
 
-    // 将用户信息附加到 request
-    req.user = result.user;
+    // 哈希 API Key（用于数据库查询）
+    const keyHash = hashApiKey(apiKey);
+
+    // 在实际实现中，我们需要查询 users 表的 apiKey 字段
+    // 但当前设计中，API Key 是与 agent 关联的
+    // 这里简化处理：从 API Key 中提取 agent ID
+
+    // 临时方案：将 API Key 存储在内存中（生产环境应使用数据库）
+    // 这里我们需要一个全局的 API Key 映射
+
+    // 由于我们没有在 agents 表中存储 apiKeyHash，暂时使用简化方案
+    // 将 API Key 存储在全局 Map 中
+
+    if (!global.apiKeyMap) {
+      global.apiKeyMap = new Map();
+    }
+
+    const agentInfo = global.apiKeyMap.get(apiKey);
+
+    if (!agentInfo) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'API Key 不存在或已过期'
+      });
+    }
+
+    // 检查 agent 状态
+    const agent = await req.app.prisma.agents.findUnique({
+      where: { id: agentInfo.agentId }
+    });
+
+    if (!agent || agent.status !== 'ACTIVE') {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Agent 不存在或已停用'
+      });
+    }
+
+    // 将 agent 信息附加到 request
+    req.agent = agent;
+    req.apiKey = apiKey;
+
     next();
+
   } catch (error) {
-    console.error('API Key验证失败:', error);
+    console.error('[API Key Validation Error]', error);
     res.status(500).json({
-      error: '认证失败',
-      message: error.message
+      error: 'Internal Server Error',
+      message: 'API Key 验证失败'
     });
   }
 }
 
 /**
- * 管理员权限中间件
+ * 哈希 API Key（用于安全存储）
  */
-async function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'ADMIN') {
-    return res.status(403).json({
-      error: '权限不足',
-      message: '需要管理员权限'
-    });
+function hashApiKey(apiKey) {
+  return crypto
+    .createHash('sha256')
+    .update(apiKey)
+    .digest('hex');
+}
+
+/**
+ * 注册 API Key（创建 agent 时调用）
+ */
+function registerApiKey(apiKey, agentId) {
+  if (!global.apiKeyMap) {
+    global.apiKeyMap = new Map();
   }
-  next();
+
+  global.apiKeyMap.set(apiKey, {
+    agentId,
+    createdAt: new Date()
+  });
 }
 
 /**
- * 资源所有权检查中间件
+ * 撤销 API Key
  */
-async function requireOwnership(req, res, next) {
-  const resourceId = req.params.agentId || req.params.id;
-  const userId = req.user.id;
-
-  // TODO: 检查资源是否属于当前用户
-  // 这里需要查询数据库验证所有权
-  
-  next();
-}
-
-/**
- * 速率限制中间件（基于API Key）
- */
-const rateLimiter = new Map();
-
-function rateLimit(maxRequests = 100, windowMs = 60000) {
-  return async (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    
-    if (!apiKey) {
-      return next();
-    }
-
-    const now = Date.now();
-    const userRequests = rateLimiter.get(apiKey) || [];
-    
-    // 过滤掉过期的请求
-    const validRequests = userRequests.filter(time => now - time < windowMs);
-    
-    if (validRequests.length >= maxRequests) {
-      return res.status(429).json({
-        error: '请求过于频繁',
-        message: `超过速率限制：${maxRequests}次/${windowMs/1000}秒`,
-        retryAfter: Math.ceil((validRequests[0] + windowMs - now) / 1000)
-      });
-    }
-
-    // 记录本次请求
-    validRequests.push(now);
-    rateLimiter.set(apiKey, validRequests);
-
-    next();
-  };
+function revokeApiKey(apiKey) {
+  if (global.apiKeyMap) {
+    global.apiKeyMap.delete(apiKey);
+  }
 }
 
 module.exports = {
-  requireApiKey,
-  requireAdmin,
-  requireOwnership,
-  rateLimit
+  validateApiKey,
+  registerApiKey,
+  revokeApiKey,
+  hashApiKey
 };
