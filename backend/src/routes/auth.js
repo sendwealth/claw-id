@@ -4,18 +4,40 @@
 const express = require('express');
 const router = express.Router();
 const passport = require('passport');
+const { PrismaClient } = require('@prisma/client');
 const githubOAuth = require('../services/githubOAuth');
 const apiKeyManager = require('../services/apiKeyManager');
 const { validateApiKey } = require('../middleware/auth');
+
+// 直接创建 prisma 客户端实例
+const prisma = new PrismaClient();
 
 /**
  * GET /auth/github
  * 发起 GitHub OAuth 认证
  */
 router.get('/github', (req, res) => {
-  const state = req.query.state || require('crypto').randomBytes(16).toString('hex');
+  const { agentId } = req.query;
+
+  console.log('[OAuth] 收到请求, agentId:', agentId);
+
+  if (!agentId) {
+    return res.status(400).json({
+      error: '缺少agentId参数',
+      message: '请在URL中提供 ?agentId=xxx'
+    });
+  }
+
+  // 将 agentId 编码到 state 中（格式：agentId:randomState）
+  const randomState = require('crypto').randomBytes(16).toString('hex');
+  const state = `${agentId}:${randomState}`;
+
+  console.log('[OAuth] 生成的 state:', state);
+
   const authUrl = githubOAuth.getAuthUrl(state);
-  
+
+  console.log('[OAuth] 生成的 authUrl:', authUrl);
+
   res.json({
     authUrl: authUrl,
     state: state
@@ -26,20 +48,34 @@ router.get('/github', (req, res) => {
  * GET /auth/github/callback
  * GitHub OAuth 回调
  */
-router.get('/github/callback', 
+router.get('/github/callback',
   passport.authenticate('github', { failureRedirect: '/auth/error', session: false }),
   async (req, res) => {
     try {
-      const { agentId } = req.query;
-      
-      if (!agentId) {
+      const { state } = req.query;
+
+      if (!state) {
         return res.status(400).json({
-          error: '缺少agentId参数'
+          error: '缺少state参数'
         });
       }
 
-      // 保存凭证
-      const credential = await githubOAuth.saveCredentials(agentId, req.user);
+      // 从 state 中解析 agentId（格式：agentId:randomState）
+      const [agentId] = state.split(':');
+
+      if (!agentId) {
+        return res.status(400).json({
+          error: '无效的state参数',
+          message: '无法解析agentId'
+        });
+      }
+
+      // 保存凭证（使用独立的 prisma 实例）
+      console.log('[OAuth回调] agentId:', agentId);
+      console.log('[OAuth回调] req.user:', req.user);
+      console.log('[OAuth回调] prisma:', typeof prisma, prisma ? Object.keys(prisma).slice(0, 5) : 'null');
+
+      const credential = await githubOAuth.saveCredentials(agentId, req.user, prisma);
 
       res.json({
         success: true,

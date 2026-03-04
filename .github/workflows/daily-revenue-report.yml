@@ -1,0 +1,51 @@
+name: Daily Revenue Report
+on:
+  schedule:
+    - cron: '0 21 * * *'  # 每天21:00执行
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Generate Revenue Report
+        id: report
+        run: |
+          # 读取收入数据（示例）
+          TARGET="500"
+          CURRENT="0"
+          
+          echo "## 💰 每日收入报告" >> daily-report.md
+          echo "**日期**: $(date '+%Y-%m-%d')" >> daily-report.md
+          echo "" >> daily-report.md
+          echo "### 📊 本周目标进度" >> daily-report.md
+          echo "- **目标**: ¥${TARGET}" >> daily-report.md
+          echo "- **当前**: ¥${CURRENT}" >> daily-report.md
+          echo "- **进度**: 0%" >> daily-report.md
+          echo "- **状态**: 🔴 需要加速" >> daily-report.md
+          echo "" >> daily-report.md
+          echo "### 📈 建议行动" >> daily-report.md
+          echo "1. 发布更多营销内容" >> daily-report.md
+          echo "2. 跟进潜在客户" >> daily-report.md
+          echo "3. 优化产品定价" >> daily-report.md
+          
+          echo "::set-output name=progress::0"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: daily-revenue-report
+          path: daily-report.md
+
+      - name: Create Issue Comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('daily-report.md', 'utf8');
+            
+            // 发送到特定 Issue（可选）
+            console.log('Daily report generated');

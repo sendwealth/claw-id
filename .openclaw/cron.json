@@ -1,0 +1,72 @@
+{
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": "ceo-hourly-check",
+      "name": "CEO 每小时检查",
+      "schedule": "0 */2 * * *",
+      "action": "heartbeat",
+      "enabled": true,
+      "description": "每2小时自动检查：客户咨询、GitHub反馈、系统状态"
+    },
+    {
+      "id": "daily-report",
+      "name": "每日工作报告",
+      "schedule": "0 9 * * *",
+      "action": "generate-report",
+      "enabled": true,
+      "description": "每天9:00生成昨日工作总结和今日计划"
+    },
+    {
+      "id": "marketing-publish-morning",
+      "name": "早间营销发布",
+      "schedule": "0 10 * * *",
+      "action": "publish-marketing",
+      "enabled": true,
+      "description": "每天10:00发布营销内容（文章、Issue回复）"
+    },
+    {
+      "id": "marketing-publish-afternoon",
+      "name": "下午营销发布",
+      "schedule": "0 14 * * *",
+      "action": "publish-marketing",
+      "enabled": true,
+      "description": "每天14:00发布营销内容"
+    },
+    {
+      "id": "revenue-tracking",
+      "name": "收入追踪",
+      "schedule": "0 21 * * *",
+      "action": "track-revenue",
+      "enabled": true,
+      "description": "每天21:00统计当日收入并更新目标进度"
+    },
+    {
+      "id": "weekly-report",
+      "name": "每周报告",
+      "schedule": "0 9 * * 1",
+      "action": "generate-weekly-report",
+      "enabled": true,
+      "description": "每周一9:00生成上周工作总结"
+    },
+    {
+      "id": "content-generation",
+      "name": "内容生成",
+      "schedule": "0 8 * * *",
+      "action": "generate-content",
+      "enabled": false,
+      "description": "每天8:00自动生成营销内容（待实现）"
+    }
+  ],
+  "settings": {
+    "timezone": "Asia/Shanghai",
+    "maxRetries": 3,
+    "retryDelay": 300000,
+    "notifications": {
+      "enabled": true,
+      "channels": ["feishu"],
+      "onSuccess": false,
+      "onFailure": true
+    }
+  }
+}

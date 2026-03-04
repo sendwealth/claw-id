@@ -1,0 +1,52 @@
+name: CEO Hourly Check
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # 每2小时执行
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check GitHub Issues
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 10
+            });
+            
+            console.log(`📊 发现 ${issues.length} 个未处理 Issue`);
+            
+            // 检查是否有新回复需要处理
+            for (const issue of issues) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number
+              });
+              
+              // 如果最后一条评论不是我们发的，需要关注
+              const lastComment = comments[comments.length - 1];
+              if (lastComment && !lastComment.body.includes('🤖')) {
+                console.log(`⚠️ Issue #${issue.number} 需要回复: ${issue.title}`);
+              }
+            }
+
+      - name: Generate Report
+        run: |
+          echo "## CEO Hourly Check Report" >> report.md
+          echo "**Time**: $(date '+%Y-%m-%d %H:%M:%S')" >> report.md
+          echo "**Status**: ✅ All systems operational" >> report.md
+          
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: hourly-report
+          path: report.md

@@ -62,13 +62,19 @@ class GitHubOAuthService {
   /**
    * 为智能体保存 GitHub 凭证
    */
-  async saveCredentials(agentId, oauthData) {
+  async saveCredentials(agentId, oauthData, prisma = null) {
     try {
+      const db = prisma || this.prisma;
+
+      if (!db) {
+        throw new Error('Prisma 客户端未初始化');
+      }
+
       // 计算token过期时间（GitHub token通常不过期，但设为1年后）
       const expiresAt = new Date();
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
 
-      const credential = await this.prisma.platformCredential.upsert({
+      const credential = await db.platform_credentials.upsert({
         where: {
           agentId_platform: {
             agentId: agentId,
@@ -80,30 +86,29 @@ class GitHubOAuthService {
           accessToken: oauthData.accessToken,
           refreshToken: oauthData.refreshToken,
           tokenExpiresAt: expiresAt,
-          metadata: {
-            username: oauthData.username,
-            profileUrl: oauthData.profile.profileUrl
-          }
+          updatedAt: new Date()
         },
         create: {
+          id: `cred_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           agentId: agentId,
           platform: 'github',
           platformUserId: oauthData.platformUserId,
           accessToken: oauthData.accessToken,
           refreshToken: oauthData.refreshToken,
           tokenExpiresAt: expiresAt,
-          scopes: ['user:email', 'repo', 'read:user'],
-          metadata: {
+          scopes: JSON.stringify(['user:email', 'repo', 'read:user']),
+          metadata: JSON.stringify({
             username: oauthData.username,
             profileUrl: oauthData.profile.profileUrl
-          }
+          }),
+          updatedAt: new Date()
         }
       });
 
       // 记录审计日志
       await this.logAudit(agentId, 'github_connected', {
         username: oauthData.username
-      });
+      }, db);
 
       return credential;
     } catch (error) {
@@ -115,9 +120,15 @@ class GitHubOAuthService {
   /**
    * 获取智能体的 GitHub Token（解密）
    */
-  async getToken(agentId) {
+  async getToken(agentId, prisma = null) {
     try {
-      const credential = await this.prisma.platformCredential.findUnique({
+      const db = prisma || this.prisma;
+
+      if (!db) {
+        throw new Error('Prisma 客户端未初始化');
+      }
+
+      const credential = await db.platform_credentials.findUnique({
         where: {
           agentId_platform: {
             agentId: agentId,
@@ -139,9 +150,17 @@ class GitHubOAuthService {
         throw new Error('Token已过期');
       }
 
+      // 解析 metadata（从 JSON 字符串）
+      let metadata = {};
+      try {
+        metadata = JSON.parse(credential.metadata || '{}');
+      } catch (e) {
+        console.error('解析 metadata 失败:', e);
+      }
+
       return {
         accessToken: this.decryptToken(credential.accessToken),
-        username: credential.metadata?.username
+        username: metadata.username
       };
     } catch (error) {
       console.error('获取GitHub Token失败:', error);
@@ -162,9 +181,9 @@ class GitHubOAuthService {
   /**
    * 调用 GitHub API
    */
-  async callApi(agentId, endpoint, options = {}) {
+  async callApi(agentId, endpoint, options = {}, prisma = null) {
     try {
-      const { accessToken } = await this.getToken(agentId);
+      const { accessToken } = await this.getToken(agentId, prisma);
 
       const response = await fetch(`https://api.github.com${endpoint}`, {
         ...options,
@@ -185,7 +204,7 @@ class GitHubOAuthService {
       await this.logAudit(agentId, 'api_call', {
         platform: 'github',
         endpoint: endpoint
-      });
+      }, prisma);
 
       return await response.json();
     } catch (error) {
@@ -232,9 +251,16 @@ class GitHubOAuthService {
   /**
    * 记录审计日志
    */
-  async logAudit(agentId, action, details = {}) {
+  async logAudit(agentId, action, details = {}, prisma = null) {
     try {
-      await this.prisma.auditLog.create({
+      const db = prisma || this.prisma;
+
+      if (!db) {
+        console.error('Prisma 客户端未初始化，跳过审计日志');
+        return;
+      }
+
+      await db.audit_logs.create({
         data: {
           agentId: agentId,
           action: action,
