@@ -1,15 +1,21 @@
-// Jest 配置文件
-
 module.exports = {
   testEnvironment: 'node',
-  testMatch: ['**/tests/**/*.test.js'],
+  coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/**/*.js',
-    '!src/app.js',  // 排除入口文件
+    '!src/**/*.test.js',
+    '!src/server.js'
   ],
-  coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-  testTimeout: 10000,
+  coverageThreshold: {
+    global: {
+      branches: 60,
+      functions: 60,
+      lines: 60,
+      statements: 60
+    }
+  },
+  testMatch: [
+    '**/tests/**/*.test.js'
+  ],
   verbose: true
 };

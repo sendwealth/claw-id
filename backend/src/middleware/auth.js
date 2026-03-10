@@ -1,7 +1,52 @@
-// API Key 验证中间件
-// 文件: src/middleware/auth.js
+// API Key & JWT Authentication Middleware
+// File: src/middleware/auth.js
 
 const crypto = require('crypto');
+const userService = require('../services/userService');
+
+/**
+ * Authenticate JWT Token
+ * Usage: router.get('/protected', authenticateJWT, handler)
+ */
+async function authenticateJWT(req, res, next) {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'No authentication token provided'
+      });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = userService.verifyJWT(token);
+    } catch (error) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: error.message
+      });
+    }
+
+    // Attach userId to request
+    req.userId = decoded.userId;
+    req.authType = 'jwt';
+
+    next();
+
+  } catch (error) {
+    console.error('[JWT Authentication Error]', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'JWT authentication failed'
+    });
+  }
+}
 
 /**
  * 验证 API Key
@@ -69,6 +114,8 @@ async function validateApiKey(req, res, next) {
     // 将 agent 信息附加到 request
     req.agent = agent;
     req.apiKey = apiKey;
+    req.userId = agent.userId; // Add userId from agent
+    req.authType = 'apikey';
 
     next();
 
@@ -115,6 +162,7 @@ function revokeApiKey(apiKey) {
 }
 
 module.exports = {
+  authenticateJWT,
   validateApiKey,
   registerApiKey,
   revokeApiKey,

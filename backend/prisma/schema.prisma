@@ -5,6 +5,9 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+  
+  // 连接池配置
+  relationMode = "prisma"
 }
 
 model agents {
@@ -18,6 +21,7 @@ model agents {
   users                users                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   audit_logs           audit_logs[]
   platform_credentials platform_credentials[]
+  api_keys             api_keys[]
 }
 
 model audit_logs {
@@ -59,4 +63,20 @@ model users {
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   agents       agents[]
+}
+
+model api_keys {
+  id          String   @id
+  agentId     String
+  keyHash     String   @unique
+  keyPrefix   String   // 前8位用于识别（如 "claw_abc1"）
+  name        String?  // 可选的密钥名称
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  agents      agents   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([keyHash])
 }

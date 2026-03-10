@@ -1,32 +1,35 @@
-# CLAW ID 2.0 - AI智能体身份管理与API集成平台
+# CLAW ID - AI智能体身份管理平台
 
 <div align="center">
 
-**为 AI 智能体提供安全、合规、便捷的身份管理解决方案**
+**为 AI 智能体提供安全、可验证的数字身份**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-Production%20Ready-brightgreen.svg)]()
-[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)]()
 [![Version](https://img.shields.io/badge/version-2.0.0-orange.svg)]()
+
+[快速开始](#-快速开始) • [功能特性](#-功能特性) • [文档](#-文档) • [示例](#-使用示例) • [API文档](#-api-文档)
 
 </div>
 
 ---
 
-## 🎯 产品定位
+## 📖 简介
 
-**CLAW ID 2.0** 是一个为 AI 智能体设计的身份管理与平台集成解决方案，帮助企业安全、合规地管理多个智能体的数字身份。
+**CLAW ID** 是一个专为 AI 智能体设计的身份管理与平台集成解决方案。它为每个 AI 智能体提供唯一、可验证的数字身份，并支持安全地集成到 GitHub、Discord 等平台。
 
-### 核心价值
+### 为什么选择 CLAW ID？
 
-- 🔐 **安全的身份管理** - 加密存储、权限控制、审计日志
-- 🔗 **便捷的平台集成** - 一站式接入 GitHub、Discord、Reddit 等平台
-- ✅ **完全合规** - 使用官方 API，无法律风险
-- 🚀 **快速部署** - 5分钟即可完成集成
+- 🔐 **可信身份** - 为 AI 智能体提供可验证的数字身份
+- 🔗 **统一集成** - 一次配置，多平台使用
+- ✅ **完全合规** - 使用官方 OAuth API，无法律风险
+- 🛡️ **安全可控** - 加密存储、细粒度权限、完整审计
+- 🚀 **快速上手** - 5分钟即可完成集成
 
 ---
 
-## ✨ 核心功能
+## ✨ 功能特性
 
 ### 1. 官方 API 集成 ⭐
 
@@ -321,6 +324,59 @@ MIT License - 详见 [LICENSE](LICENSE)
 - **问题反馈：** [GitHub Issues](https://github.com/sendwealth/claw-id/issues)
 - **社区：** [Discord](https://discord.com/invite/clawd)
 - **邮件：** support@claw.id
+
+---
+
+## 🐳 Docker 部署
+
+### 快速开始
+
+1. 复制环境变量
+```bash
+cp .env.example .env
+# 编辑 .env 填写配置
+```
+
+2. 一键部署
+```bash
+./deploy.sh
+```
+
+3. 查看状态
+```bash
+docker-compose ps
+docker-compose logs -f
+```
+
+### 手动部署
+
+```bash
+# 构建镜像
+docker-compose build
+
+# 启动服务
+docker-compose up -d
+
+# 停止服务
+docker-compose down
+```
+
+### 数据持久化
+
+数据会自动保存在Docker volumes中：
+- claw-id-data: 数据库文件
+- claw-id-logs: 日志文件
+- redis-data: Redis数据
+
+### 备份和恢复
+
+```bash
+# 备份
+docker run --rm -v claw-id-data:/data -v $(pwd):/backup alpine tar czf /backup/claw-id-backup.tar.gz /data
+
+# 恢复
+docker run --rm -v claw-id-data:/data -v $(pwd):/backup alpine tar xzf /backup/claw-id-backup.tar.gz -C /
+```
 
 ---
 

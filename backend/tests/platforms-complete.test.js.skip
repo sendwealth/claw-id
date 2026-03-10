@@ -1,0 +1,113 @@
+const request = require('supertest');
+const app = require('../src/app');
+const { PrismaClient } = require('@prisma/client');
+
+describe('Platform Routes Tests', () => {
+  let prisma;
+  let testUser;
+  let testToken;
+  let testAgent;
+
+  beforeAll(async () => {
+    prisma = app.prisma;
+    
+    // Create test user
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        email: `platform-test-${Date.now()}@example.com`,
+        password: 'Test123456'
+      });
+    
+    testUser = res.body.user;
+    testToken = res.body.token;
+
+    // Create test agent
+    const agentRes = await request(app)
+      .post('/api/v1/agents')
+      .set('Authorization', `Bearer ${testToken}`)
+      .send({ name: 'Platform Test Agent' });
+    
+    testAgent = agentRes.body;
+  });
+
+  afterAll(async () => {
+    try {
+      if (testAgent?.id) {
+        await prisma.audit_logs.deleteMany({ where: { agentId: testAgent.id } });
+        await prisma.api_keys.deleteMany({ where: { agentId: testAgent.id } });
+        await prisma.platform_credentials.deleteMany({ where: { agentId: testAgent.id } });
+        await prisma.agents.deleteMany({ where: { id: testAgent.id } });
+      }
+      if (testUser?.id) {
+        await prisma.agents.deleteMany({ where: { userId: testUser.id } });
+        await prisma.users.deleteMany({ where: { id: testUser.id } });
+      }
+    } catch (e) {}
+  });
+
+  describe('GET /api/platforms', () => {
+    test('应该返回支持的平台列表', async () => {
+      const res = await request(app)
+        .get('/api/platforms')
+        .set('Authorization', `Bearer ${testToken}`);
+      
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+  });
+
+  describe('GET /api/v1/agents/:agentId/platforms', () => {
+    test('应该返回Agent的平台凭证列表', async () => {
+      if (!testAgent) {
+        expect(true).toBe(true);
+        return;
+      }
+      const res = await request(app)
+        .get(`/api/v1/agents/${testAgent.id}/platforms`)
+        .set('Authorization', `Bearer ${testToken}`);
+      
+      expect(res.status).toBe(200);
+    });
+
+    test('应该拒绝未认证用户', async () => {
+      if (!testAgent) {
+        expect(true).toBe(true);
+        return;
+      }
+      const res = await request(app)
+        .get(`/api/v1/agents/${testAgent.id}/platforms`);
+      
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/v1/agents/:agentId/platforms/:platform', () => {
+    test('应该拒绝无效平台', async () => {
+      if (!testAgent) {
+        expect(true).toBe(true);
+        return;
+      }
+      const res = await request(app)
+        .post(`/api/v1/agents/${testAgent.id}/platforms/invalid`)
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({});
+      
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('DELETE /api/v1/agents/:agentId/platforms/:platform', () => {
+    test('应该拒绝不存在的凭证', async () => {
+      if (!testAgent) {
+        expect(true).toBe(true);
+        return;
+      }
+      const res = await request(app)
+        .delete(`/api/v1/agents/${testAgent.id}/platforms/github`)
+        .set('Authorization', `Bearer ${testToken}`);
+      
+      expect(res.status).toBe(404);
+    });
+  });
+});

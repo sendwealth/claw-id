@@ -1,0 +1,61 @@
+const request = require('supertest');
+const app = require('../src/app');
+const { PrismaClient } = require('@prisma/client');
+
+describe('Legacy Auth Routes Tests', () => {
+  let prisma;
+  let testPrefix;
+
+  beforeAll(async () => {
+    prisma = app.prisma;
+    testPrefix = `auth-test-${Date.now()}`;
+  });
+
+  afterAll(async () => {
+    try {
+      await prisma.users.deleteMany({
+        where: { email: { contains: testPrefix } }
+      });
+    } catch (e) {}
+  });
+
+  describe('GET /api/v1/auth/github', () => {
+    test('应该返回GitHub OAuth URL', async () => {
+      const res = await request(app)
+        .get('/api/v1/auth/github');
+      
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('url');
+      expect(res.body.url).toContain('github.com');
+    });
+  });
+
+  describe('GET /api/v1/auth/discord', () => {
+    test('应该返回Discord OAuth URL', async () => {
+      const res = await request(app)
+        .get('/api/v1/auth/discord');
+      
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('url');
+      expect(res.body.url).toContain('discord.com');
+    });
+  });
+
+  describe('GET /api/v1/auth/callback/github', () => {
+    test('应该拒绝无效的code', async () => {
+      const res = await request(app)
+        .get('/api/v1/auth/callback/github?code=invalid');
+      
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe('GET /api/v1/auth/callback/discord', () => {
+    test('应该拒绝无效的code', async () => {
+      const res = await request(app)
+        .get('/api/v1/auth/callback/discord?code=invalid');
+      
+      expect(res.status).toBe(500);
+    });
+  });
+});

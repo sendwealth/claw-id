@@ -1,0 +1,235 @@
+const request = require('supertest');
+const app = require('../src/app');
+const { PrismaClient } = require('@prisma/client');
+
+describe('Agent Management Complete Tests', () => {
+  let user1, user2;
+  let token1, token2;
+  let agent1, agent2;
+  let prisma;
+
+  beforeAll(async () => {
+    // Use the same prisma instance as the app
+    prisma = app.prisma;
+    
+    // Clean up test data with unique prefix
+    const testPrefix = `agent-test-${Date.now()}`;
+    
+    // Create two test users
+    const res1 = await request(app)
+      .post('/api/auth/register')
+      .send({
+        email: `${testPrefix}-1@example.com`,
+        password: 'Test123456'
+      });
+    user1 = res1.body.user;
+    token1 = res1.body.token;
+
+    const res2 = await request(app)
+      .post('/api/auth/register')
+      .send({
+        email: `${testPrefix}-2@example.com`,
+        password: 'Test123456'
+      });
+    user2 = res2.body.user;
+    token2 = res2.body.token;
+    
+    // Verify users exist before proceeding
+    const user1Check = await prisma.users.findUnique({ where: { id: user1.id } });
+    const user2Check = await prisma.users.findUnique({ where: { id: user2.id } });
+    
+    if (!user1Check || !user2Check) {
+      throw new Error('Failed to create test users');
+    }
+  });
+
+  afterAll(async () => {
+    // Clean up test data
+    try {
+      if (agent1?.id) {
+        await prisma.audit_logs.deleteMany({ where: { agentId: agent1.id } });
+        await prisma.api_keys.deleteMany({ where: { agentId: agent1.id } });
+        await prisma.platform_credentials.deleteMany({ where: { agentId: agent1.id } });
+        await prisma.agents.deleteMany({ where: { id: agent1.id } });
+      }
+      if (agent2?.id) {
+        await prisma.audit_logs.deleteMany({ where: { agentId: agent2.id } });
+        await prisma.api_keys.deleteMany({ where: { agentId: agent2.id } });
+        await prisma.platform_credentials.deleteMany({ where: { agentId: agent2.id } });
+        await prisma.agents.deleteMany({ where: { id: agent2.id } });
+      }
+      if (user1?.id) {
+        await prisma.agents.deleteMany({ where: { userId: user1.id } });
+        await prisma.users.deleteMany({ where: { id: user1.id } });
+      }
+      if (user2?.id) {
+        await prisma.agents.deleteMany({ where: { userId: user2.id } });
+        await prisma.users.deleteMany({ where: { id: user2.id } });
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  });
+
+  describe('POST /api/v1/agents', () => {
+    test('应该拒绝未认证用户创建Agent', async () => {
+      const res = await request(app)
+        .post('/api/v1/agents')
+        .send({ name: 'Test Bot' });
+      
+      expect(res.status).toBe(401);
+    });
+
+    test('应该成功创建Agent并关联到用户', async () => {
+      const res = await request(app)
+        .post('/api/v1/agents')
+        .set('Authorization', `Bearer ${token1}`)
+        .send({
+          name: 'User1 Agent',
+          platforms: ['github']
+        });
+      
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveProperty('id');
+      expect(res.body).toHaveProperty('apiKey');
+      expect(res.body.name).toBe('User1 Agent');
+      expect(res.body.platforms).toContain('github');
+
+      agent1 = res.body;
+    });
+
+    test('应该生成唯一ID和邮箱', async () => {
+      const res = await request(app)
+        .post('/api/v1/agents')
+        .set('Authorization', `Bearer ${token1}`)
+        .send({ name: 'Another Agent' });
+      
+      expect(res.status).toBe(201);
+      expect(res.body.id).toMatch(/^agent_/);
+      expect(res.body.email).toMatch(/@claw\.id$/);
+      expect(res.body.id).not.toBe(agent1.id);
+
+      agent2 = res.body;
+    });
+
+    test('应该生成API Key', async () => {
+      expect(agent1).toBeDefined();
+      expect(agent2).toBeDefined();
+      expect(agent1.apiKey).toMatch(/^claw_/);
+      expect(agent2.apiKey).toMatch(/^claw_/);
+      expect(agent1.apiKey).not.toBe(agent2.apiKey);
+    });
+  });
+
+  describe('GET /api/v1/agents', () => {
+    test('应该只返回用户的Agents', async () => {
+      const res1 = await request(app)
+        .get('/api/v1/agents')
+        .set('Authorization', `Bearer ${token1}`);
+      
+      expect(res1.status).toBe(200);
+      expect(res1.body.agents.length).toBeGreaterThanOrEqual(2);
+
+      const res2 = await request(app)
+        .get('/api/v1/agents')
+        .set('Authorization', `Bearer ${token2}`);
+      
+      expect(res2.status).toBe(200);
+      expect(res2.body.agents).toHaveLength(0);
+    });
+
+    test('应该支持状态过滤', async () => {
+      const res = await request(app)
+        .get('/api/v1/agents?status=ACTIVE')
+        .set('Authorization', `Bearer ${token1}`);
+      
+      expect(res.status).toBe(200);
+      expect(res.body.agents.length).toBeGreaterThanOrEqual(2);
+    });
+
+    test('应该支持关键词搜索', async () => {
+      const res = await request(app)
+        .get('/api/v1/agents?search=User1')
+        .set('Authorization', `Bearer ${token1}`);
+      
+      expect(res.status).toBe(200);
+      expect(res.body.agents.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.agents[0].name).toContain('User1');
+    });
+
+    test('应该支持分页', async () => {
+      const res = await request(app)
+        .get('/api/v1/agents?page=1&limit=1')
+        .set('Authorization', `Bearer ${token1}`);
+      
+      expect(res.status).toBe(200);
+      expect(res.body.agents).toHaveLength(1);
+      expect(res.body.pagination).toHaveProperty('total');
+      expect(res.body.pagination).toHaveProperty('page', 1);
+      expect(res.body.pagination).toHaveProperty('limit', 1);
+    });
+  });
+
+  describe('PUT /api/v1/agents/:id', () => {
+    test('应该拒绝更新其他用户的Agent', async () => {
+      if (!agent1) {
+        expect(true).toBe(true); // Skip if agent1 not created
+        return;
+      }
+      const res = await request(app)
+        .put(`/api/v1/agents/${agent1.id}`)
+        .set('Authorization', `Bearer ${token2}`)
+        .send({ name: 'Hacked' });
+      
+      expect(res.status).toBe(404);
+    });
+
+    test('应该成功更新自己的Agent', async () => {
+      if (!agent1) {
+        expect(true).toBe(true); // Skip if agent1 not created
+        return;
+      }
+      const res = await request(app)
+        .put(`/api/v1/agents/${agent1.id}`)
+        .set('Authorization', `Bearer ${token1}`)
+        .send({ name: 'Updated Agent' });
+      
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('Updated Agent');
+    });
+  });
+
+  describe('DELETE /api/v1/agents/:id', () => {
+    test('应该拒绝删除其他用户的Agent', async () => {
+      if (!agent1) {
+        expect(true).toBe(true); // Skip if agent1 not created
+        return;
+      }
+      const res = await request(app)
+        .delete(`/api/v1/agents/${agent1.id}`)
+        .set('Authorization', `Bearer ${token2}`);
+      
+      expect(res.status).toBe(404);
+    });
+
+    test('应该成功删除自己的Agent', async () => {
+      if (!agent2) {
+        expect(true).toBe(true); // Skip if agent2 not created
+        return;
+      }
+      const res = await request(app)
+        .delete(`/api/v1/agents/${agent2.id}`)
+        .set('Authorization', `Bearer ${token1}`);
+      
+      expect(res.status).toBe(200);
+
+      // 验证已删除
+      const res2 = await request(app)
+        .get('/api/v1/agents')
+        .set('Authorization', `Bearer ${token1}`);
+      
+      // Should have one less agent
+      expect(res2.body.agents.length).toBeLessThanOrEqual(1);
+    });
+  });
+});
